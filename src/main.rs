@@ -1,11 +1,16 @@
 use bevy::prelude::*;
-use bevy::core::FixedTimestep;
 use bevy::window::PresentMode;
-use bevy::sprite::collide_aabb::collide;
 use rand::Rng;
 
+mod cleanup {
+    use bevy::prelude::*;
+    #[derive(Component)]
+    pub struct LevelUnload;
+    #[derive(Component)]
+    pub struct MenuClose;
+}
+
 const CUBE_SIZE: f32 = 16.;
-const TIMESTEP_2_PER_SECOND: f64 = 30. / 60.;
 
 fn main() {
     App::new()
@@ -16,11 +21,6 @@ fn main() {
         })
         .add_plugins(DefaultPlugins)
 
-        //.add_state(AppState::Menu)
-        //.add_system_set(
-        //    SystemSet::on_enter(AppState::Menu)
-        //)
-
         .add_state(AppState::OverWorld)
         .add_system_set(
            SystemSet::on_enter(AppState::OverWorld)
@@ -28,13 +28,15 @@ fn main() {
         )
         .add_system_set(
            SystemSet::on_update(AppState::OverWorld)
-               .with_system(move_player)
-               .with_system(battle_check)
-               .with_system(game_tick)
+               .with_system(battle_check.label("battle_check"))
+               .with_system(move_enemy.after("battle_check"))
+               .with_system(move_player.after("battle_check"))
         )
-        .add_system_set(
-            SystemSet::on_exit(AppState::OverWorld)
 
+        .add_system_set(
+            SystemSet::on_enter(AppState::Battle)
+                .with_system(is_saved_data)
+                .with_system(setup_battle_ui)
         )
 
         .add_event::<GameTickEvent>()
@@ -49,17 +51,17 @@ enum AppState {
     Battle
 }
 
-fn setup_world(
-    mut commands: Commands, 
-    mut app_state: ResMut<State<AppState>>
-) {
+fn is_saved_data() {
+    println!("it's working!");
+}
 
+fn setup_world(mut commands: Commands) {
     // camera
     commands.spawn_bundle(OrthographicCameraBundle::new_2d());
 
     // player
     commands.spawn_bundle(PlayerBundle {
-        name: Name("test".to_string()),
+        name: Name("player_name".to_string()),
         sprite: SpriteBundle {
             sprite: Sprite {
                 color: Color::rgb(0.25, 0.25, 50.),
@@ -74,7 +76,7 @@ fn setup_world(
     });
 
     commands.spawn_bundle(EnemyBundle {
-        name: Name("test".to_string()),
+        name: Name("enemy_name".to_string()),
         health: Health(100),
         experience: Experience(0),
         sprite: SpriteBundle {
@@ -87,6 +89,76 @@ fn setup_world(
             ..default()
         },
         _e: Enemy
+    });
+}
+
+fn setup_battle_ui(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    player_query: Query<&Name, With<Player>>,
+    enemy_query: Query<&Name, Without<Player>>
+) {
+    let player_name = player_query.single();
+    let enemy_name = enemy_query.single();
+
+    commands.spawn_bundle(UiCameraBundle::default());
+    commands.spawn_bundle(NodeBundle {
+        style: Style {
+            size: Size::new(Val::Percent(85.0), Val::Percent(85.0)),
+            justify_content: JustifyContent::Center,
+            margin: Rect::all(Val::Auto),
+            ..default()
+        },
+        color: UiColor(Color::DARK_GRAY),
+        ..default()
+    })
+    .with_children(|parent| {
+        parent.spawn_bundle(TextBundle {
+            text: Text::with_section(
+                &player_name.0,
+                TextStyle {
+                    font: asset_server.load("fonts/ComicMono-Bold.ttf"),
+                    font_size: 40.0,
+                    color: Color::WHITE,
+                },
+                Default::default()
+            ),
+            style: Style {
+                margin: Rect { 
+                    top: Val::Auto, 
+                    bottom: Val::Auto, 
+                    left: Val::Percent(5.), 
+                    ..default() 
+                },
+                size: Size::new(Val::Percent(10.), Default::default()),
+                ..default()
+            },
+            ..default()
+        });
+
+        parent.spawn_bundle(TextBundle {
+            text: Text::with_section(
+                &enemy_name.0,
+                TextStyle {
+                    font: asset_server.load("fonts/ComicMono-Bold.ttf"),
+                    font_size: 40.0,
+                    color: Color::WHITE,
+                },
+                Default::default()
+            ),
+            style: Style {
+                display: Display::Flex,
+                align_self: AlignSelf::FlexEnd,
+                margin: Rect { 
+                    top: Val::Auto, 
+                    bottom: Val::Auto,
+                    ..default() 
+                },
+                size: Size::new(Val::Percent(10.), Default::default()),
+                ..default()
+            },
+            ..default()
+        });
     });
 }
 
@@ -118,7 +190,7 @@ fn move_player(
     }
 }
 
-fn game_tick(
+fn move_enemy(
     mut enemy_query: Query<&mut Transform, With<Enemy>>,
     mut ev_tick: EventReader<GameTickEvent>
 ) {
@@ -138,19 +210,16 @@ fn game_tick(
 }
 
 fn battle_check(
-    mut ev_tick: EventReader<GameTickEvent>,
     mut app_state: ResMut<State<AppState>>,
     enemy_query: Query<&mut Transform, Without<Player>>,
     player_query: Query<&mut Transform, With<Player>>
 ) {
     let player_pos = player_query.single();
-    for event in ev_tick.iter() {
         for enemy in enemy_query.iter() {
-            if collide(enemy.translation, enemy.scale.truncate(), player_pos.translation, player_pos.scale.truncate()).is_some() {
-                app_state.set(AppState::Battle).unwrap()
+            if enemy.translation == player_pos.translation {
+                app_state.push(AppState::Battle).unwrap()
             }
         }
-    }
 }
 
 #[derive(Bundle)]
@@ -188,7 +257,7 @@ struct Items(Vec<u8>);
 #[derive(Component)]
 struct Experience(u16);
 
-#[derive(Component)]
+#[derive(Component, PartialEq, Eq)]
 struct Name(String);
 
 #[derive(Component)]
