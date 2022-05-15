@@ -105,8 +105,9 @@ fn setup_battle_ui(
     commands.spawn_bundle(NodeBundle {
         style: Style {
             size: Size::new(Val::Percent(85.0), Val::Percent(85.0)),
-            justify_content: JustifyContent::Center,
+            justify_content: JustifyContent::SpaceBetween,
             margin: Rect::all(Val::Auto),
+            padding: Rect::all(Val::Percent(10.)),
             ..default()
         },
         color: UiColor(Color::DARK_GRAY),
@@ -127,10 +128,10 @@ fn setup_battle_ui(
                 margin: Rect { 
                     top: Val::Auto, 
                     bottom: Val::Auto, 
-                    left: Val::Percent(5.), 
                     ..default() 
                 },
-                size: Size::new(Val::Percent(10.), Default::default()),
+
+                size: Size::new(Val::Percent(20.), Val::Percent(5.)),
                 ..default()
             },
             ..default()
@@ -149,12 +150,12 @@ fn setup_battle_ui(
             style: Style {
                 display: Display::Flex,
                 align_self: AlignSelf::FlexEnd,
-                margin: Rect { 
-                    top: Val::Auto, 
+                margin: Rect {
+                    top: Val::Auto,
                     bottom: Val::Auto,
                     ..default() 
                 },
-                size: Size::new(Val::Percent(10.), Default::default()),
+                size: Size::new(Default::default(), Val::Percent(5.)),
                 ..default()
             },
             ..default()
